@@ -956,7 +956,6 @@ class Store {
   async init() {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open('bonegraph', 1);
-            const req = indexedDB.open('bonegraph', 1);
       req.onupgradeneeded = e => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains('projects')) {
