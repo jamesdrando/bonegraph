@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BoneGraph</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="toolbar">
+      <div class="toolbar-group">
+        <button id="btn-new" title="New Project">New</button>
+        <button id="btn-save" title="Save">Save</button>
+        <button id="btn-load" title="Load">Load</button>
+      </div>
+      <div class="toolbar-group">
+        <button id="btn-tool-select" class="tool-btn active" data-tool="select" title="Select / Move (V)">Select</button>
+        <button id="btn-tool-add-node" class="tool-btn" data-tool="add_node" title="Add Node (N)">+ Node</button>
+        <button id="btn-tool-add-edge" class="tool-btn" data-tool="add_edge" title="Add Edge (E)">+ Edge</button>
+        <select id="edge-type-picker" title="Edge type">
+          <option value="directed">A→B</option>
+          <option value="bidirectional">A↔B</option>
+          <option value="elastic">A–B</option>
+        </select>
+        <button id="btn-tool-delete" class="tool-btn" data-tool="delete" title="Delete (Del)">Delete</button>
+      </div>
+      <div class="toolbar-group">
+        <label>Grid:
+          <select id="canvas-size-picker">
+            <option value="32">32×32</option>
+            <option value="64" selected>64×64</option>
+            <option value="128">128×128</option>
+            <option value="256">256×256</option>
+          </select>
+        </label>
+      </div>
+      <div class="toolbar-group">
+        <button id="btn-export" title="Export sprite sheet">Export</button>
+      </div>
+      <div id="status-bar"></div>
+    </header>
+    <main id="workspace">
+      <aside id="sidebar">
+        <div id="properties-panel">
+          <h3>Properties</h3>
+          <div id="properties-content">
+            <p class="hint">Select a node or edge</p>
+          </div>
+        </div>
+      </aside>
+      <div id="canvas-container">
+        <canvas id="scene-canvas"></canvas>
+      </div>
+    </main>
+    <footer id="timeline">
+      <div id="playback-controls">
+        <button id="btn-add-frame" title="Add Frame">+ Frame</button>
+        <button id="btn-duplicate-frame" title="Duplicate Frame">⧉</button>
+        <button id="btn-delete-frame" title="Delete Frame">– Frame</button>
+        <button id="btn-prev-frame" title="Previous Frame">◀</button>
+        <button id="btn-play" title="Play/Pause (Space)">▶</button>
+        <button id="btn-next-frame" title="Next Frame">▶|</button>
+        <label>FPS: <input id="fps-input" type="number" value="12" min="1" max="60" style="width:48px"></label>
+        <span id="frame-counter">Frame: 1 / 1</span>
+      </div>
+      <div id="frame-strip-container">
+        <div id="frame-strip"></div>
+      </div>
+    </footer>
+  </div>
+  <div id="modal-overlay" class="hidden">
+    <div id="modal-box">
+      <button id="modal-close" title="Close">✕</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
