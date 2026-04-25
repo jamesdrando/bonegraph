@@ -12,6 +12,7 @@
   --toolbar-h: 48px;
   --timeline-h: 140px;
   --sidebar-w: 220px;
+  --modal-gap: 24px;
 }
 * {
   box-sizing: border-box;
@@ -264,7 +265,7 @@ select:hover {
   padding: 24px;
   min-width: 320px;
   max-width: 500px;
-  width: min(500px, calc(100vw - 24px));
+  width: min(500px, calc(100vw - var(--modal-gap)));
   max-height: 80vh;
   overflow-y: auto;
   position: relative;
@@ -400,7 +401,7 @@ input[type=number]::-webkit-inner-spin-button {
   }
   #canvas-container {
     order: 1;
-    min-height: 45vh;
+    min-height: min(45vh, 45dvh);
   }
   #sidebar {
     order: 2;
@@ -448,7 +449,7 @@ input[type=number]::-webkit-inner-spin-button {
     margin-left: 0;
   }
   #canvas-container {
-    min-height: 40vh;
+    min-height: min(40vh, 40dvh);
   }
   #sidebar {
     max-height: 22vh;
