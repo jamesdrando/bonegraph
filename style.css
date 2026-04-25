@@ -406,7 +406,6 @@ input[type=number]::-webkit-inner-spin-button {
   #canvas-container {
     order: 1;
     min-height: 45vh;
-    min-height: 45dvh;
   }
   #sidebar {
     order: 2;
@@ -455,7 +454,6 @@ input[type=number]::-webkit-inner-spin-button {
   }
   #canvas-container {
     min-height: 40vh;
-    min-height: 40dvh;
   }
   #sidebar {
     max-height: 22vh;
@@ -466,5 +464,18 @@ input[type=number]::-webkit-inner-spin-button {
   }
   .project-list li {
     flex-wrap: wrap;
+  }
+}
+
+@supports (min-height: 1dvh) {
+  @media (max-width: 900px) {
+    #canvas-container {
+      min-height: 45dvh;
+    }
+  }
+  @media (max-width: 640px) {
+    #canvas-container {
+      min-height: 40dvh;
+    }
   }
 }
