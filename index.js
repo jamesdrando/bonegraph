@@ -338,7 +338,9 @@ class Renderer {
     this._c = {
       bg:              '#1a1a2e',
       grid:            '#2a2a4a',
-      gridBounds:      '#4a4a8a',
+      gridBounds:      '#6666aa',
+      boundsBox:       '#5577bb',
+      boundsLabel:     '#8899cc',
       nodeDefault:     '#7ec8e3',
       nodeSelected:    '#ffd700',
       nodeHover:       '#b0e0ff',
@@ -359,6 +361,7 @@ class Renderer {
     const H = this.canvas.height;
     this._clear(W, H);
     this._drawGrid(this._canvasSize);
+    this._drawRenderBounds(this._canvasSize);
     this._drawAxes();
     for (const item of this._sortRenderables()) {
       if (item.type === 'edge') {
@@ -403,13 +406,29 @@ class Renderer {
     ].map(c => this.camera.worldToScreen(c, W, H)).filter(Boolean);
     if (corners.length === 4) {
       ctx.strokeStyle = this._c.gridBounds;
-      ctx.lineWidth   = 1.5;
+      ctx.lineWidth   = 2;
       ctx.beginPath();
       ctx.moveTo(corners[0].x, corners[0].y);
       for (let i = 1; i < 4; i++) ctx.lineTo(corners[i].x, corners[i].y);
       ctx.closePath();
       ctx.stroke();
     }
+    // Center cross lines on the floor plane (X=0 and Z=0 axes)
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = this._c.axisX;
+    this._drawLine2D(ctx,
+      this.camera.worldToScreen({ x: -hs, y: 0, z: 0 }, W, H),
+      this.camera.worldToScreen({ x:  hs, y: 0, z: 0 }, W, H)
+    );
+    ctx.strokeStyle = this._c.axisZ;
+    this._drawLine2D(ctx,
+      this.camera.worldToScreen({ x: 0, y: 0, z: -hs }, W, H),
+      this.camera.worldToScreen({ x: 0, y: 0, z:  hs }, W, H)
+    );
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
   }
   _drawLine2D(ctx, a, b) {
     if (!a || !b) return;
@@ -425,19 +444,86 @@ class Renderer {
     if (!o) return;
     const len  = 10;
     const axes = [
-      { end: { x: len, y: 0,   z: 0   }, color: this._c.axisX },
-      { end: { x: 0,   y: len, z: 0   }, color: this._c.axisY },
-      { end: { x: 0,   y: 0,   z: len }, color: this._c.axisZ }
+      { end: { x: len, y: 0,   z: 0   }, color: this._c.axisX, label: 'X' },
+      { end: { x: 0,   y: len, z: 0   }, color: this._c.axisY, label: 'Y' },
+      { end: { x: 0,   y: 0,   z: len }, color: this._c.axisZ, label: 'Z' }
     ];
-    for (const { end, color } of axes) {
+    const ctx = this.ctx;
+    ctx.font      = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    for (const { end, color, label } of axes) {
       const ep = this.camera.worldToScreen(end, W, H);
       if (!ep) continue;
-      this.ctx.strokeStyle = color;
-      this.ctx.lineWidth   = 2;
-      this.ctx.beginPath();
-      this.ctx.moveTo(o.x, o.y);
-      this.ctx.lineTo(ep.x, ep.y);
-      this.ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 2;
+      ctx.beginPath();
+      ctx.moveTo(o.x, o.y);
+      ctx.lineTo(ep.x, ep.y);
+      ctx.stroke();
+      const dx  = ep.x - o.x;
+      const dy  = ep.y - o.y;
+      const labelOffset = Math.hypot(dx, dy);
+      if (labelOffset > 0) {
+        ctx.fillStyle = color;
+        ctx.fillText(label, ep.x + (dx / labelOffset) * 9, ep.y + (dy / labelOffset) * 9 + 3);
+      }
+    }
+  }
+  _drawRenderBounds(canvasSize) {
+    const ctx = this.ctx;
+    const W   = this.canvas.width;
+    const H   = this.canvas.height;
+    const hs  = canvasSize / 2;
+    // Project all 8 corners of the bounding cube
+    const b = [
+      this.camera.worldToScreen({ x: -hs, y: -hs, z: -hs }, W, H),
+      this.camera.worldToScreen({ x:  hs, y: -hs, z: -hs }, W, H),
+      this.camera.worldToScreen({ x:  hs, y: -hs, z:  hs }, W, H),
+      this.camera.worldToScreen({ x: -hs, y: -hs, z:  hs }, W, H)
+    ];
+    const t = [
+      this.camera.worldToScreen({ x: -hs, y:  hs, z: -hs }, W, H),
+      this.camera.worldToScreen({ x:  hs, y:  hs, z: -hs }, W, H),
+      this.camera.worldToScreen({ x:  hs, y:  hs, z:  hs }, W, H),
+      this.camera.worldToScreen({ x: -hs, y:  hs, z:  hs }, W, H)
+    ];
+    ctx.save();
+    ctx.strokeStyle = this._c.boundsBox;
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([5, 4]);
+    ctx.globalAlpha = 0.6;
+    // Bottom face
+    if (b.every(Boolean)) {
+      ctx.beginPath();
+      ctx.moveTo(b[0].x, b[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(b[i].x, b[i].y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+    // Top face
+    if (t.every(Boolean)) {
+      ctx.beginPath();
+      ctx.moveTo(t[0].x, t[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(t[i].x, t[i].y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+    // Vertical edges connecting bottom to top
+    for (let i = 0; i < 4; i++) {
+      if (b[i] && t[i]) this._drawLine2D(ctx, b[i], t[i]);
+    }
+    ctx.restore();
+    // "Export bounds" label above the top face
+    const topValid = t.filter(Boolean);
+    if (topValid.length > 0) {
+      const mx = topValid.reduce((s, p) => s + p.x, 0) / topValid.length;
+      const my = topValid.reduce((mn, p) => Math.min(mn, p.y), Infinity) - 6;
+      ctx.save();
+      ctx.fillStyle  = this._c.boundsLabel;
+      ctx.font       = '10px sans-serif';
+      ctx.textAlign  = 'center';
+      ctx.fillText(`Export bounds (${canvasSize}×${canvasSize})`, mx, my);
+      ctx.restore();
     }
   }
   _sortRenderables() {
