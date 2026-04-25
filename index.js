@@ -437,8 +437,6 @@ class Renderer {
       this.ctx.beginPath();
       this.ctx.moveTo(o.x, o.y);
       this.ctx.lineTo(ep.x, ep.y);
-      Original file line number	Diff line number	Diff line change
-      this.ctx.lineTo(ep.x, ep.y);
       this.ctx.stroke();
     }
   }
@@ -697,7 +695,6 @@ class InputHandler {
       const t  = this.app.scene.getNode(edge.to);
       if (!f || !t) continue;
       const sA = this.app.camera.worldToScreen({ x: f.x, y: f.y, z: f.z }, W, H);
-      const sB = this.app.camera.worldToScreen({ x: t.x, y: t.y, z: t.z }, W, H);
       const sB = this.app.camera.worldToScreen({ x: t.x, y: t.y, z: t.z }, W, H);
       if (!sA || !sB) continue;
       if (this._ptSegDist(sx, sy, sA.x, sA.y, sB.x, sB.y) <= EDGE_HIT_WIDTH) return edge.id;
@@ -959,7 +956,6 @@ class Store {
   async init() {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open('bonegraph', 1);
-            const req = indexedDB.open('bonegraph', 1);
       req.onupgradeneeded = e => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains('projects')) {
@@ -1222,7 +1218,6 @@ class UIController {
         </select>
       </div>
       <button id="btn-do-export" class="btn-accent">Export PNG</button>
-         <button id="btn-do-export" class="btn-accent">Export PNG</button>
       <div id="export-progress" style="display:none; margin-top:12px">
         <progress id="export-bar" value="0" max="1" style="width:100%"></progress>
         <span id="export-pct">0%</span>
