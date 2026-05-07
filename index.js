@@ -21,6 +21,7 @@ const EXPORT_PRESET = {
   CUSTOM: 'custom'
 };
 const NODE_RADIUS          = 8;
+const EXPORT_NODE_DIAMETER = 4;
 const HIT_RADIUS           = 12;
 const EDGE_HIT_WIDTH       = 6;
 const PARALLEL_RAY_DISTANCE = 1000; // fallback extent when ray is parallel to target plane
@@ -1085,7 +1086,13 @@ class UIController {
   // --- Toolbar ---
   _bindToolbar() {
     document.querySelectorAll('.tool-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.app.setTool(btn.dataset.tool));
+      btn.addEventListener('click', () => {
+        if (btn.id === 'btn-tool-add-node') {
+          this.app.addNodeAtMidpoint();
+          return;
+        }
+        this.app.setTool(btn.dataset.tool);
+      });
     });
     document.getElementById('edge-type-picker').addEventListener('change', e => {
       this.app.setEdgeType(e.target.value);
@@ -1272,6 +1279,9 @@ class UIController {
     });
   }
   showExportModal() {
+    const getDefaultNodeDiameter = (cellSize) => {
+      return Math.max(2, Math.min(8, Math.round(cellSize / 16)));
+    };
     this._showModal(`
       <h2>Export Sprite Sheet</h2>
       <div class="prop-group">
@@ -1303,19 +1313,33 @@ class UIController {
           <option value="256">256×256</option>
         </select>
       </div>
+      <div class="prop-group">
+        <label>Node Diameter (px)</label>
+        <input type="number" id="export-node-diameter" value="4" min="1" max="32" step="1">
+      </div>
       <button id="btn-do-export" class="btn-accent">Export PNG</button>
       <div id="export-progress" style="display:none; margin-top:12px">
         <progress id="export-bar" value="0" max="1" style="width:100%"></progress>
         <span id="export-pct">0%</span>
       </div>
     `);
+    const cellSizeSelect = document.getElementById('export-cell-size');
+    const nodeDiameterInput = document.getElementById('export-node-diameter');
+    nodeDiameterInput.value = getDefaultNodeDiameter(parseInt(cellSizeSelect.value, 10) || 64);
+
     document.getElementById('export-preset').addEventListener('change', e => {
       document.getElementById('custom-angle-fields').style.display =
         e.target.value === 'custom' ? '' : 'none';
     });
+    cellSizeSelect.addEventListener('change', e => {
+      const size = parseInt(e.target.value, 10) || 64;
+      nodeDiameterInput.value = getDefaultNodeDiameter(size);
+    });
     document.getElementById('btn-do-export').addEventListener('click', async () => {
       const preset   = document.getElementById('export-preset').value;
       const cellSize = parseInt(document.getElementById('export-cell-size').value, 10);
+      const nodeDiameter = parseFloat(document.getElementById('export-node-diameter').value);
+      const diameter = Number.isFinite(nodeDiameter) && nodeDiameter > 0 ? nodeDiameter : getDefaultNodeDiameter(cellSize);
       let customAngles = null;
       if (preset === 'custom') {
         customAngles = [{
@@ -1326,7 +1350,7 @@ class UIController {
       }
       document.getElementById('export-progress').style.display = '';
       document.getElementById('btn-do-export').disabled = true;
-      await this.app.exportAnimation(preset, customAngles, cellSize, p => {
+      await this.app.exportAnimation(preset, customAngles, cellSize, diameter, p => {
         document.getElementById('export-bar').value = p;
         document.getElementById('export-pct').textContent = Math.round(p * 100) + '%';
       });
@@ -1530,6 +1554,12 @@ class App {
     this.selectNode(node.id);
     return node;
   }
+  addNodeAtMidpoint(name = null) {
+    const midpoint = { x: 0, y: 0, z: 0 };
+    const node = this.addNode(midpoint.x, midpoint.y, midpoint.z, name);
+    this._ui.setStatus('Added node at cube midpoint.');
+    return node;
+  }
   deleteSelected() {
     if (this._selectedNodeId !== null) {
       this._scene.removeNode(this._selectedNodeId);
@@ -1584,15 +1614,17 @@ class App {
     }
   }
   // --- Export ---
-  async exportAnimation(preset, customAngles, exportCanvasSize, onProgress) {
+  async exportAnimation(preset, customAngles, exportCanvasSize, nodeDiameter, onProgress) {
     this._animController.captureCurrentFrame();
+    const diameter = Math.max(1, Number.isFinite(nodeDiameter) ? nodeDiameter : EXPORT_NODE_DIAMETER);
+    const nodeRadius = diameter / 2;
     const dataURL = await this._exportMgr.render(
       this._scene,
       this._animController,
       preset,
       customAngles,
       exportCanvasSize,
-      3,
+      nodeRadius,
       onProgress
     );
     const a      = document.createElement('a');
