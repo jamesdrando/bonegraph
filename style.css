@@ -71,6 +71,26 @@ body {
 .toolbar-group:last-of-type {
   border-right: none;
 }
+.toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.toggle-item input {
+  margin: 0;
+  transform: translateY(-0.5px);
+}
+.toolbar-select {
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
 /* ── Workspace ── */
 #workspace {
   display: flex;
@@ -108,10 +128,27 @@ body {
   flex-direction: column;
   margin-bottom: 8px;
 }
+.axis-control {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+}
 .prop-group label {
   font-size: 11px;
   color: var(--text2);
   margin-bottom: 3px;
+}
+.axis-slider {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+.axis-number {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  padding: 3px 4px;
 }
 .prop-group input,
 .prop-group select,
@@ -123,6 +160,14 @@ body {
   padding: 4px 6px;
   font-size: 12px;
   width: 100%;
+}
+.prop-group .axis-number,
+.prop-group .axis-slider {
+  width: 100%;
+}
+.prop-group .axis-number {
+  width: 72px;
+  max-width: 72px;
 }
 /* ── Canvas ── */
 #canvas-container {

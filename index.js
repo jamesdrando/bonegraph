@@ -20,6 +20,11 @@ const EXPORT_PRESET = {
   ISO_8: 'iso_8',
   CUSTOM: 'custom'
 };
+const NODE_RENDER_MODE = {
+  CIRCLE: 'circle',
+  SQUARE: 'square',
+  CUBE: 'cube'
+};
 const NODE_RADIUS          = 8;
 const EXPORT_NODE_DIAMETER = 4;
 const HIT_RADIUS           = 12;
@@ -336,6 +341,7 @@ class Renderer {
     this.scene       = scene;
     this.camera      = camera;
     this._canvasSize = 64;
+    this._nodeRenderMode = NODE_RENDER_MODE.CIRCLE;
     this._c = {
       bg:              '#1a1a2e',
       grid:            '#2a2a4a',
@@ -357,6 +363,12 @@ class Renderer {
     };
   }
   setCanvasSize(size) { this._canvasSize = size; }
+  setNodeRenderMode(mode) {
+    this._nodeRenderMode = Object.values(NODE_RENDER_MODE).includes(mode)
+      ? mode
+      : NODE_RENDER_MODE.CIRCLE;
+  }
+  setPixelNodes(enabled) { this.setNodeRenderMode(enabled ? NODE_RENDER_MODE.SQUARE : NODE_RENDER_MODE.CIRCLE); }
   render(selectedNodeId, selectedEdgeId, activeTool, pendingEdgeFromId, mouseScreenPos) {
     const W = this.canvas.width;
     const H = this.canvas.height;
@@ -607,19 +619,137 @@ class Renderer {
   }
   _drawNode(node, isSelected, sp) {
     const ctx = this.ctx;
-    const r   = NODE_RADIUS;
+    if (this._nodeRenderMode === NODE_RENDER_MODE.CIRCLE) {
+      const r = NODE_RADIUS;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
+      ctx.fillStyle   = isSelected ? this._c.nodeSelected : this._c.nodeDefault;
+      ctx.fill();
+      ctx.strokeStyle = this._c.nodeStroke;
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
+      ctx.fillStyle  = this._c.label;
+      ctx.font       = '10px sans-serif';
+      ctx.textAlign  = 'center';
+      ctx.fillText(node.name, sp.x, sp.y + r + 12);
+      ctx.restore();
+      return;
+    }
+    if (this._nodeRenderMode === NODE_RENDER_MODE.SQUARE) {
+      const half = 0.5;
+      const right = this.camera.getRightVector();
+      const up    = this.camera.getUpVector();
+      const spR = this.camera.worldToScreen({
+        x: node.x + right.x * half,
+        y: node.y + right.y * half,
+        z: node.z + right.z * half
+      }, this.canvas.width, this.canvas.height);
+      const spL = this.camera.worldToScreen({
+        x: node.x - right.x * half,
+        y: node.y - right.y * half,
+        z: node.z - right.z * half
+      }, this.canvas.width, this.canvas.height);
+      const spU = this.camera.worldToScreen({
+        x: node.x + up.x * half,
+        y: node.y + up.y * half,
+        z: node.z + up.z * half
+      }, this.canvas.width, this.canvas.height);
+      const spD = this.camera.worldToScreen({
+        x: node.x - up.x * half,
+        y: node.y - up.y * half,
+        z: node.z - up.z * half
+      }, this.canvas.width, this.canvas.height);
+
+      if (!spR || !spL || !spU || !spD) return;
+
+      const width = Math.hypot(spR.x - spL.x, spR.y - spL.y);
+      const height = Math.hypot(spU.x - spD.x, spU.y - spD.y);
+      const size = Math.max(1, Math.max(width, height));
+      const x = sp.x - size / 2;
+      const y = sp.y - size / 2;
+
+      const fill = isSelected ? this._c.nodeSelected : this._c.nodeDefault;
+      const stroke = this._c.nodeStroke;
+      ctx.save();
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = isSelected ? 1.5 : 1;
+      ctx.fillRect(x, y, size, size);
+      ctx.strokeRect(x, y, size, size);
+      if (isSelected) {
+        ctx.strokeStyle = this._c.nodeSelected;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - 1, y - 1, size + 2, size + 2);
+      }
+      ctx.fillStyle  = this._c.label;
+      ctx.font       = '10px sans-serif';
+      ctx.textAlign  = 'center';
+      ctx.fillText(node.name, sp.x, y - 4);
+      ctx.restore();
+      return;
+    }
+    this._drawNodeCube(node, isSelected, sp);
+  }
+  _drawNodeCube(node, isSelected, sp) {
+    const vertices = [
+      this.camera.worldToScreen({ x: node.x - 0.5, y: node.y - 0.5, z: node.z - 0.5 }, this.canvas.width, this.canvas.height),
+      this.camera.worldToScreen({ x: node.x + 0.5, y: node.y - 0.5, z: node.z - 0.5 }, this.canvas.width, this.canvas.height),
+      this.camera.worldToScreen({ x: node.x + 0.5, y: node.y + 0.5, z: node.z - 0.5 }, this.canvas.width, this.canvas.height),
+      this.camera.worldToScreen({ x: node.x - 0.5, y: node.y + 0.5, z: node.z - 0.5 }, this.canvas.width, this.canvas.height),
+      this.camera.worldToScreen({ x: node.x - 0.5, y: node.y - 0.5, z: node.z + 0.5 }, this.canvas.width, this.canvas.height),
+      this.camera.worldToScreen({ x: node.x + 0.5, y: node.y - 0.5, z: node.z + 0.5 }, this.canvas.width, this.canvas.height),
+      this.camera.worldToScreen({ x: node.x + 0.5, y: node.y + 0.5, z: node.z + 0.5 }, this.canvas.width, this.canvas.height),
+      this.camera.worldToScreen({ x: node.x - 0.5, y: node.y + 0.5, z: node.z + 0.5 }, this.canvas.width, this.canvas.height)
+    ];
+    if (vertices.some(v => !v)) return;
+
+    const faces = [
+      { idx: [0, 1, 2, 3], shade: 0.42 },
+      { idx: [4, 5, 6, 7], shade: 0.96 },
+      { idx: [0, 4, 5, 1], shade: 0.34 },
+      { idx: [3, 7, 6, 2], shade: 0.62 },
+      { idx: [0, 3, 7, 4], shade: 0.5 },
+      { idx: [1, 2, 6, 5], shade: 0.7 }
+    ].map(face => {
+      const points = face.idx.map(i => vertices[i]);
+      const depth = points.reduce((sum, p) => sum + p.depth, 0) / 4;
+      return { points, shade: face.shade, depth };
+    }).sort((a, b) => b.depth - a.depth);
+
+    const ctx = this.ctx;
+    const fill = isSelected ? this._c.nodeSelected : this._c.nodeDefault;
+    const stroke = isSelected ? this._c.nodeSelected : this._c.nodeStroke;
+    const topY = Math.min(...vertices.map(v => v.y)) - 4;
+
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
-    ctx.fillStyle   = isSelected ? this._c.nodeSelected : this._c.nodeDefault;
-    ctx.fill();
-    ctx.strokeStyle = this._c.nodeStroke;
-    ctx.lineWidth   = 1.5;
-    ctx.stroke();
+    for (const face of faces) {
+      ctx.beginPath();
+      ctx.moveTo(face.points[0].x, face.points[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(face.points[i].x, face.points[i].y);
+      ctx.closePath();
+      ctx.globalAlpha = face.shade;
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = isSelected ? 0.85 : 0.6;
+      ctx.globalAlpha = isSelected ? 0.95 : Math.min(1, face.shade + 0.25);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
     ctx.fillStyle  = this._c.label;
     ctx.font       = '10px sans-serif';
     ctx.textAlign  = 'center';
-    ctx.fillText(node.name, sp.x, sp.y + r + 12);
+    ctx.fillText(node.name, sp.x, topY);
+    if (isSelected) {
+      const minX = Math.min(...vertices.map(v => v.x));
+      const maxX = Math.max(...vertices.map(v => v.x));
+      const minY = Math.min(...vertices.map(v => v.y));
+      const maxY = Math.max(...vertices.map(v => v.y));
+      ctx.strokeStyle = this._c.nodeSelected;
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(minX - 1, minY - 1, maxX - minX + 2, maxY - minY + 2);
+    }
     ctx.restore();
   }
   _drawPendingEdge(fromNode, mousePos) {
@@ -947,9 +1077,12 @@ class AnimationController {
 // Section 9: EXPORT MANAGER
 // =============================================================================
 class ExportManager {
-  async render(scene, animController, preset, customAngles, canvasSize, nodeRadius, onProgress) {
+  async render(scene, animController, preset, customAngles, canvasSize, nodeRadius, nodeRenderMode, onProgress) {
     const angles     = this._getPresetAngles(preset, customAngles);
     const frameCount = animController.frameCount;
+    const resolvedMode = Object.values(NODE_RENDER_MODE).includes(nodeRenderMode)
+      ? nodeRenderMode
+      : NODE_RENDER_MODE.CIRCLE;
     const cellSize   = canvasSize;
     const sheet = document.createElement('canvas');
     sheet.width  = frameCount * cellSize;
@@ -971,7 +1104,7 @@ class ExportManager {
       cam.phi   = angles[di].phi;
       for (let fi = 0; fi < frameCount; fi++) {
         const snap = animController.getFrameSnapshot(fi);
-        this._renderFrameToCanvas(cellCtx, scene, snap, cam, cellSize, nodeRadius);
+        this._renderFrameToCanvas(cellCtx, scene, snap, cam, cellSize, nodeRadius, resolvedMode);
         sheetCtx.drawImage(cell, fi * cellSize, di * cellSize);
         done++;
         if (onProgress) onProgress(done / total);
@@ -1004,7 +1137,7 @@ class ExportManager {
         return [{ theta: 0, phi: PI / 2, label: 'Side' }];
     }
   }
-  _renderFrameToCanvas(ctx, scene, frameSnapshot, camera, cellSize, nodeRadius) {
+  _renderFrameToCanvas(ctx, scene, frameSnapshot, camera, cellSize, nodeRadius, nodeRenderMode) {
     ctx.clearRect(0, 0, cellSize, cellSize);
     const r = nodeRadius || 3;
     // Edges
@@ -1028,11 +1161,89 @@ class ExportManager {
       if (!pos) continue;
       const sp = camera.worldToScreen(pos, cellSize, cellSize);
       if (!sp) continue;
-      ctx.fillStyle = '#7ec8e3';
-      ctx.beginPath();
-      ctx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
-      ctx.fill();
+      if (nodeRenderMode === NODE_RENDER_MODE.CIRCLE) {
+        ctx.fillStyle = '#7ec8e3';
+        ctx.beginPath();
+        ctx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
+      if (nodeRenderMode === NODE_RENDER_MODE.SQUARE) {
+        const half = 0.5;
+        const right = camera.getRightVector();
+        const up    = camera.getUpVector();
+        const pR = camera.worldToScreen({
+          x: pos.x + right.x * half,
+          y: pos.y + right.y * half,
+          z: pos.z + right.z * half
+        }, cellSize, cellSize);
+        const pL = camera.worldToScreen({
+          x: pos.x - right.x * half,
+          y: pos.y - right.y * half,
+          z: pos.z - right.z * half
+        }, cellSize, cellSize);
+        const pU = camera.worldToScreen({
+          x: pos.x + up.x * half,
+          y: pos.y + up.y * half,
+          z: pos.z + up.z * half
+        }, cellSize, cellSize);
+        const pD = camera.worldToScreen({
+          x: pos.x - up.x * half,
+          y: pos.y - up.y * half,
+          z: pos.z - up.z * half
+        }, cellSize, cellSize);
+        if (!pR || !pL || !pU || !pD) continue;
+
+        const width = Math.hypot(pR.x - pL.x, pR.y - pL.y);
+        const height = Math.hypot(pU.x - pD.x, pU.y - pD.y);
+        const size = Math.max(1, Math.max(width, height));
+        ctx.fillStyle = '#7ec8e3';
+        ctx.fillRect(Math.round(sp.x - size / 2), Math.round(sp.y - size / 2), size, size);
+        continue;
+      }
+      this._drawExportNodeCube(ctx, camera, cellSize, pos, '#7ec8e3');
     }
+  }
+  _drawExportNodeCube(ctx, camera, cellSize, pos, color) {
+    const vertices = [
+      camera.worldToScreen({ x: pos.x - 0.5, y: pos.y - 0.5, z: pos.z - 0.5 }, cellSize, cellSize),
+      camera.worldToScreen({ x: pos.x + 0.5, y: pos.y - 0.5, z: pos.z - 0.5 }, cellSize, cellSize),
+      camera.worldToScreen({ x: pos.x + 0.5, y: pos.y + 0.5, z: pos.z - 0.5 }, cellSize, cellSize),
+      camera.worldToScreen({ x: pos.x - 0.5, y: pos.y + 0.5, z: pos.z - 0.5 }, cellSize, cellSize),
+      camera.worldToScreen({ x: pos.x - 0.5, y: pos.y - 0.5, z: pos.z + 0.5 }, cellSize, cellSize),
+      camera.worldToScreen({ x: pos.x + 0.5, y: pos.y - 0.5, z: pos.z + 0.5 }, cellSize, cellSize),
+      camera.worldToScreen({ x: pos.x + 0.5, y: pos.y + 0.5, z: pos.z + 0.5 }, cellSize, cellSize),
+      camera.worldToScreen({ x: pos.x - 0.5, y: pos.y + 0.5, z: pos.z + 0.5 }, cellSize, cellSize)
+    ];
+    if (vertices.some(v => !v)) return;
+
+    const faces = [
+      { idx: [0, 1, 2, 3], shade: 0.42 },
+      { idx: [4, 5, 6, 7], shade: 0.96 },
+      { idx: [0, 4, 5, 1], shade: 0.34 },
+      { idx: [3, 7, 6, 2], shade: 0.62 },
+      { idx: [0, 3, 7, 4], shade: 0.5 },
+      { idx: [1, 2, 6, 5], shade: 0.7 }
+    ].map(face => {
+      const points = face.idx.map(i => vertices[i]);
+      const depth = points.reduce((sum, p) => sum + p.depth, 0) / 4;
+      return { points, shade: face.shade, depth };
+    }).sort((a, b) => b.depth - a.depth);
+
+    for (const face of faces) {
+      ctx.beginPath();
+      ctx.moveTo(face.points[0].x, face.points[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(face.points[i].x, face.points[i].y);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.globalAlpha = face.shade;
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.7;
+      ctx.globalAlpha = Math.min(1, face.shade + 0.2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 }
 // =============================================================================
@@ -1100,6 +1311,12 @@ class UIController {
     document.getElementById('canvas-size-picker').addEventListener('change', e => {
       this.app.setCanvasSize(parseInt(e.target.value, 10));
     });
+    const nodeRenderModeSelect = document.getElementById('node-render-mode');
+    if (nodeRenderModeSelect) {
+      nodeRenderModeSelect.addEventListener('change', e => {
+        this.app.setNodeRenderMode(e.target.value);
+      });
+    }
     document.getElementById('btn-export').addEventListener('click', () => this.showExportModal());
   }
   setActiveTool(tool) {
@@ -1111,6 +1328,13 @@ class UIController {
   }
   setActiveEdgeType(type) {
     document.getElementById('edge-type-picker').value = type;
+  }
+  setPixelNodes(enabled) {
+    this.setNodeRenderMode(enabled ? NODE_RENDER_MODE.SQUARE : NODE_RENDER_MODE.CIRCLE);
+  }
+  setNodeRenderMode(mode) {
+    const el = document.getElementById('node-render-mode');
+    if (el) el.value = Object.values(NODE_RENDER_MODE).includes(mode) ? mode : NODE_RENDER_MODE.CIRCLE;
   }
   // --- Timeline ---
   _bindTimeline() {
@@ -1176,6 +1400,16 @@ class UIController {
   }
   // --- Sidebar ---
   showNodeProperties(node) {
+    const axisRange = axisValue => {
+      const renderHalf = Math.max(16, Math.ceil((this.app.canvasSize || 64) / 2));
+      const aroundCurrent = Math.ceil(Math.abs(axisValue) * 1.5) + 4;
+      const span = Math.max(renderHalf, aroundCurrent);
+      return { min: -Math.max(1, Math.ceil(span)), max: Math.max(1, Math.ceil(span)) };
+    };
+    const toInt = v => Math.round(v);
+    const xRange = axisRange(node.x);
+    const yRange = axisRange(node.y);
+    const zRange = axisRange(node.z);
     document.getElementById('properties-content').innerHTML = `
       <div class="prop-group">
         <label>Name</label>
@@ -1183,22 +1417,57 @@ class UIController {
       </div>
       <div class="prop-group">
         <label>X</label>
-        <input type="number" id="prop-x" value="${node.x.toFixed(3)}" step="0.5">
+        <div class="axis-control">
+          <input type="number" id="prop-x-value" class="axis-number" value="${toInt(node.x)}" step="1">
+          <input type="range" id="prop-x-slider" class="axis-slider"
+            min="${xRange.min}" max="${xRange.max}" step="1" value="${toInt(node.x)}">
+        </div>
       </div>
       <div class="prop-group">
         <label>Y</label>
-        <input type="number" id="prop-y" value="${node.y.toFixed(3)}" step="0.5">
+        <div class="axis-control">
+          <input type="number" id="prop-y-value" class="axis-number" value="${toInt(node.y)}" step="1">
+          <input type="range" id="prop-y-slider" class="axis-slider"
+            min="${yRange.min}" max="${yRange.max}" step="1" value="${toInt(node.y)}">
+        </div>
       </div>
       <div class="prop-group">
         <label>Z</label>
-        <input type="number" id="prop-z" value="${node.z.toFixed(3)}" step="0.5">
+        <div class="axis-control">
+          <input type="number" id="prop-z-value" class="axis-number" value="${toInt(node.z)}" step="1">
+          <input type="range" id="prop-z-slider" class="axis-slider"
+            min="${zRange.min}" max="${zRange.max}" step="1" value="${toInt(node.z)}">
+        </div>
       </div>
     `;
     document.getElementById('prop-name').addEventListener('input', e => { node.name = e.target.value; });
     for (const axis of ['x', 'y', 'z']) {
-      document.getElementById(`prop-${axis}`).addEventListener('input', e => {
+      const slider = document.getElementById(`prop-${axis}-slider`);
+      const numberInput = document.getElementById(`prop-${axis}-value`);
+      slider.addEventListener('input', e => {
         const v = parseFloat(e.target.value);
-        if (!isNaN(v)) { node[axis] = v; this.app.animController.captureCurrentFrame(); }
+        if (!isNaN(v)) {
+          const intV = toInt(v);
+          this.app.setSelectedNodeCoordinate(axis, intV);
+          numberInput.value = intV;
+          slider.value = intV;
+        }
+      });
+      numberInput.addEventListener('input', e => {
+        const v = parseFloat(e.target.value);
+        if (!isNaN(v)) {
+          const intV = toInt(v);
+          const sliderMin = Number(slider.min);
+          const sliderMax = Number(slider.max);
+          this.app.setSelectedNodeCoordinate(axis, intV);
+          if (intV < sliderMin || intV > sliderMax) {
+            const r = axisRange(intV);
+            slider.min = r.min;
+            slider.max = r.max;
+          }
+          slider.value = intV;
+          numberInput.value = intV;
+        }
       });
     }
   }
@@ -1401,6 +1670,7 @@ class App {
     this._mouseScreenPos    = null;
     this._fps               = 12;
     this._canvasSize        = 64;
+    this._nodeRenderMode    = NODE_RENDER_MODE.CIRCLE;
     this._projectId         = null;
     this._projectName       = 'Untitled';
   }
@@ -1408,6 +1678,7 @@ class App {
     const canvas = document.getElementById('scene-canvas');
     this._renderer     = new Renderer(canvas, this._scene, this._camera);
     this._renderer.setCanvasSize(this._canvasSize);
+    this._renderer.setNodeRenderMode(this._nodeRenderMode);
     this._inputHandler = new InputHandler(canvas, this);
     this._ui           = new UIController(this);
     this._ui.init();
@@ -1416,6 +1687,7 @@ class App {
     this._resizeCanvas(canvas);
     this._ui.refreshFrameStrip();
     this._ui.setActiveTool(this._activeTool);
+    this._ui.setNodeRenderMode(this._nodeRenderMode);
     this._ui.showSceneProperties();
     this._renderLoop();
   }
@@ -1443,8 +1715,10 @@ class App {
     this._pendingEdgeFromId = null;
     this._projectId         = null;
     this._projectName       = 'Untitled';
+    this._nodeRenderMode    = NODE_RENDER_MODE.CIRCLE;
     this._ui.refreshFrameStrip();
     this._ui.clearProperties();
+    this.setNodeRenderMode(this._nodeRenderMode);
     this._ui.setStatus('New project.');
   }
   _generateId() {
@@ -1469,7 +1743,9 @@ class App {
       canvasSize: this._canvasSize,
       nodes:      snap.nodes,
       edges:      snap.edges,
-      frames:     this._animController.toJSON().frames
+      frames:     this._animController.toJSON().frames,
+      nodeRenderMode: this._nodeRenderMode,
+      pixelNodes: this._nodeRenderMode === NODE_RENDER_MODE.SQUARE
     };
     await this._store.saveProject(project);
     this._ui.setStatus(`Saved "${this._projectName}".`);
@@ -1480,6 +1756,12 @@ class App {
     this._projectId    = data.id;
     this._projectName  = data.name;
     this._canvasSize   = data.canvasSize || 64;
+    const savedMode = Object.values(NODE_RENDER_MODE).includes(data.nodeRenderMode)
+      ? data.nodeRenderMode
+      : (typeof data.pixelNodes === 'boolean'
+          ? (data.pixelNodes ? NODE_RENDER_MODE.SQUARE : NODE_RENDER_MODE.CIRCLE)
+          : NODE_RENDER_MODE.CIRCLE);
+    this._nodeRenderMode = savedMode;
     this._scene = new Scene();
     this._scene.fromJSON({ nodes: data.nodes || [], edges: data.edges || [] });
     this._animController = new AnimationController(this._scene);
@@ -1496,6 +1778,7 @@ class App {
     this._selectedEdgeId    = null;
     this._pendingEdgeFromId = null;
     this._ui.setCanvasSize(this._canvasSize);
+    this.setNodeRenderMode(this._nodeRenderMode);
     document.getElementById('canvas-size-picker').value = this._canvasSize;
     this._ui.refreshFrameStrip();
     this._ui.clearProperties();
@@ -1507,6 +1790,7 @@ class App {
   get animController()    { return this._animController;  }
   get ui()                { return this._ui;              }
   get store()             { return this._store;           }
+  get canvasSize()        { return this._canvasSize;      }
   get activeTool()        { return this._activeTool;      }
   get activeEdgeType()    { return this._activeEdgeType;  }
   get pendingEdgeFromId() { return this._pendingEdgeFromId; }
@@ -1523,6 +1807,16 @@ class App {
   setCanvasSize(size) {
     this._canvasSize = size;
     if (this._renderer) this._renderer.setCanvasSize(size);
+  }
+  setPixelNodes(enabled) {
+    this.setNodeRenderMode(enabled ? NODE_RENDER_MODE.SQUARE : NODE_RENDER_MODE.CIRCLE);
+  }
+  setNodeRenderMode(mode) {
+    this._nodeRenderMode = Object.values(NODE_RENDER_MODE).includes(mode)
+      ? mode
+      : NODE_RENDER_MODE.CIRCLE;
+    if (this._renderer) this._renderer.setNodeRenderMode(this._nodeRenderMode);
+    if (this._ui) this._ui.setNodeRenderMode(this._nodeRenderMode);
   }
   setFps(fps) {
     this._fps = Math.max(1, Math.min(60, fps));
@@ -1546,6 +1840,15 @@ class App {
     this._selectedNodeId = null;
     this._selectedEdgeId = null;
     this._ui.showSceneProperties();
+  }
+  setSelectedNodeCoordinate(axis, value) {
+    if (this._selectedNodeId === null || !['x', 'y', 'z'].includes(axis)) return;
+    const node = this._scene.getNode(this._selectedNodeId);
+    const v = Math.round(Number(value));
+    if (node && Number.isFinite(v)) {
+      node[axis] = v;
+      this._animController.captureCurrentFrame();
+    }
   }
   // --- Nodes / Edges ---
   addNode(x, y, z, name = null) {
@@ -1625,6 +1928,7 @@ class App {
       customAngles,
       exportCanvasSize,
       nodeRadius,
+      this._nodeRenderMode,
       onProgress
     );
     const a      = document.createElement('a');
